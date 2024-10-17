@@ -17,3 +17,7 @@ python3 run.py --RUN='train' --MODEL='mcan_small' --VIS_FEAT='CenterPoint' --GPU
 Download mcan_small.yml from https://github.com/MILVLG/openvqa/blob/master/configs/vqa/mcan_small.yml and save as configs/mcan_small.yaml
 python -m spacy download en_core_web_lg
 ```
+
+## Acknowlegement
+
+We sincerely thank the authors of [NuScenes-QA](https://github.com/qiantianwen/NuScenes-QA) for open sourcing their dataset and methods.
