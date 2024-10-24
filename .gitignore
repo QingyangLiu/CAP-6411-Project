@@ -3,6 +3,7 @@ instructions.txt
 en_core_web_lg-2.1.0.tar.gz
 data/
 outputs/
+features/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

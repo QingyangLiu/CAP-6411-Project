@@ -145,11 +145,17 @@ class NuScenes_QA(Data.Dataset):
     
     def load_obj_feats(self, scene_token):
         # det_results = np.load(self.stk2featpath[scene_token], allow_pickle=True)['results']
+
+        objs_features = np.load(f'features/{scene_token}_obj_feat.npz')["my_tensor"]
+        bbox_features = np.load(f'features/{scene_token}_bbox_feat.npz')["my_tensor"]
         det_results = [{
-            'feats': np.random.rand(512),
-            'box': np.random.rand(7),
+            # 'feats': np.random.rand(512),
+            # 'box': np.random.rand(7),
+            # 'label': np.random.randint(0, 10)
+            'feats': objfeat,
+            'box': box_feat,
             'label': np.random.randint(0, 10)
-        } for _ in range(10)]
+        } for objfeat, box_feat in zip(objs_features, bbox_features)]
 
         det_results = np.array(det_results)
 

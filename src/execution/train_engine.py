@@ -151,10 +151,6 @@ def train_engine(__C, dataset, dataset_eval=None):
                     ans_iter[accu_step * __C.SUB_BATCH_SIZE:
                             (accu_step + 1) * __C.SUB_BATCH_SIZE]
 
-                print("####", sub_obj_feat_iter.shape,
-                    sub_bbox_feat_iter.shape,
-                    sub_ques_ix_iter.shape)
-
                 pred = net(
                     sub_obj_feat_iter,
                     sub_bbox_feat_iter,
@@ -251,7 +247,7 @@ def train_engine(__C, dataset, dataset_eval=None):
             ', Loss: ' + str(loss_sum / data_size) +
             ', Lr: ' + str(optim._rate) + '\n' +
             'Elapsed time: ' + str(int(elapse_time)) + 
-            ', Speed(s/batch): ' + str(elapse_time / step) +
+            # ', Speed(s/batch): ' + str(elapse_time / step) +
             '\n\n'
         )
         logfile.close()
@@ -263,7 +259,7 @@ def train_engine(__C, dataset, dataset_eval=None):
                 __C,
                 dataset_eval,
                 state_dict=net.state_dict(),
-                save_eval_result = False
+                save_eval_result = True
             )
 
         loss_sum = 0
