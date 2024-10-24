@@ -235,7 +235,9 @@ class BEVFusion(Base3DDetector):
 
         res = self.add_pred_to_datasample(batch_data_samples, outputs)
 
-        return res
+        return res, feats
+        ##Changed here to get both feats and res
+        #return res
 
     def extract_feat(
         self,

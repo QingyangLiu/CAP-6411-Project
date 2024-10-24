@@ -296,6 +296,192 @@ def inference_multi_modality_detector(model: nn.Module,
         return results, data
 
 
+
+
+def inference_multi_modality_detector_feature(model: nn.Module,
+                                      pcds: Union[str, Sequence[str]],
+                                      imgs: Union[str, Sequence[str]],
+                                      ann_file: Union[str, Sequence[str]],
+                                      cam_type: str = 'CAM2',
+                                      camera_view_list: str = None,
+                                      sample_token: str = None):
+    """Inference point cloud with the multi-modality detector. Now we only
+    support multi-modality detector for KITTI and SUNRGBD datasets since the
+    multi-view image loading is not supported yet in this inference function.
+
+    Args:
+        model (nn.Module): The loaded detector.
+        pcds (str, Sequence[str]):
+            Either point cloud files or loaded point cloud.
+        imgs (str, Sequence[str]):
+           Either image files or loaded images.
+        ann_file (str, Sequence[str]): Annotation files.
+        cam_type (str): Image of Camera chose to infer. When detector only uses
+            single-view image, we need to specify a camera view. For kitti
+            dataset, it should be 'CAM2'. For sunrgbd, it should be 'CAM0'.
+            When detector uses multi-view images, we should set it to 'all'.
+
+    Returns:
+        :obj:`Det3DDataSample` or list[:obj:`Det3DDataSample`]:
+        If pcds is a list or tuple, the same length list type results
+        will be returned, otherwise return the detection results directly.
+    """
+
+    print("##############Print in Inference")
+    print(pcds)
+    print(imgs)
+    print(ann_file)
+    print(cam_type)
+
+    #####Generally at start
+    #/home/imr555/Downloads/projects/mmdet3d_installation/mmdetection3d/demo/data/nuscenes/n015-2018-07-24-11-22-45+0800__LIDAR_TOP__1532402927647951.pcd.bin
+    #/home/imr555/Downloads/projects/mmdet3d_installation/mmdetection3d/demo/data/nuscenes/
+    #/home/imr555/Downloads/projects/mmdet3d_installation/mmdetection3d/demo/data/nuscenes/n015-2018-07-24-11-22-45+0800.pkl
+    #all
+
+    #pcds can be covered with lidar_path
+    #imgs is image folder, we have to manipulate it for path with all values
+    #ann_file, no pkl file so pull from NuScenes directly under section 4 https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/tutorials/nuscenes_tutorial.ipynb
+    #cam_type, manipulate with imgs
+
+    print("##############Print in Inference")
+    
+
+
+
+
+    if isinstance(pcds, (list, tuple)):
+        is_batch = True
+        assert isinstance(imgs, (list, tuple))
+        assert len(pcds) == len(imgs)
+    else:
+        pcds = [pcds]
+        imgs = [imgs]
+        is_batch = False
+
+    cfg = model.cfg
+
+    # build the data pipeline
+    test_pipeline = deepcopy(cfg.test_dataloader.dataset.pipeline)
+    test_pipeline = Compose(test_pipeline)
+    box_type_3d, box_mode_3d = \
+        get_box_type(cfg.test_dataloader.dataset.box_type_3d)
+
+    print("##############Print in Inference")
+
+    data_list = mmengine.load(ann_file)['data_list']
+
+    #print(data_list)
+    count = 0
+    data_list_act = []
+    print(len(data_list))
+    for sample_dict in data_list:
+        if sample_dict["token"] == sample_token:
+            count +=1
+            data_list_act.append(sample_dict)
+            
+            
+    print("##############Print in Inference")
+    print(count)
+
+    
+
+    data = []
+    for index, pcd in enumerate(pcds):
+        # get data info containing calib
+        #data_info = data_list[index]
+        data_info = data_list_act[index]
+        img = imgs[index]
+
+        print("##############Print in Inference")
+        print(data_list_act)
+        print("##############Print in Inference")
+        print(imgs)
+        print("##############Print in Inference")
+
+        
+
+        if cam_type != 'all':
+            assert osp.isfile(img), f'{img} must be a file.'
+            img_path = data_info['images'][cam_type]['img_path']
+            if osp.basename(img_path) != osp.basename(img):
+                raise ValueError(
+                    f'the info file of {img_path} is not provided.')
+            data_ = dict(
+                lidar_points=dict(lidar_path=pcd),
+                img_path=img,
+                box_type_3d=box_type_3d,
+                box_mode_3d=box_mode_3d)
+            data_info['images'][cam_type]['img_path'] = img
+            if 'cam2img' in data_info['images'][cam_type]:
+                # The data annotation in SRUNRGBD dataset does not contain
+                # `cam2img`
+                data_['cam2img'] = np.array(
+                    data_info['images'][cam_type]['cam2img'])
+
+            # LiDAR to image conversion for KITTI dataset
+            if box_mode_3d == Box3DMode.LIDAR:
+                if 'lidar2img' in data_info['images'][cam_type]:
+                    data_['lidar2img'] = np.array(
+                        data_info['images'][cam_type]['lidar2img'])
+            # Depth to image conversion for SUNRGBD dataset
+            elif box_mode_3d == Box3DMode.DEPTH:
+                data_['depth2img'] = np.array(
+                    data_info['images'][cam_type]['depth2img'])
+        else:
+
+            # assert osp.isdir(img), f'{img} must be a file directory'
+            # for _, img_info in data_info['images'].items():
+            #     img_info['img_path'] = osp.join(img, img_info['img_path'])
+            #     assert osp.isfile(img_info['img_path']
+            #                       ), f'{img_info["img_path"]} does not exist.'
+            # data_ = dict(
+            #     lidar_points=dict(lidar_path=pcd),
+            #     images=data_info['images'],
+            #     box_type_3d=box_type_3d,
+            #     box_mode_3d=box_mode_3d)
+
+            ##################################
+
+            assert osp.isdir(img), f'{img} must be a file directory'
+            count_index=0
+            for _, img_info in data_info['images'].items():
+                img_info['img_path'] = camera_view_list[count_index]
+                assert osp.isfile(img_info['img_path']
+                                  ), f'{img_info["img_path"]} does not exist.'
+                count_index += 1
+
+            print(camera_view_list)
+            print(img_info)
+
+            
+            data_ = dict(
+                lidar_points=dict(lidar_path=pcd),
+                images=data_info['images'],
+                box_type_3d=box_type_3d,
+                box_mode_3d=box_mode_3d)
+
+        if 'timestamp' in data_info:
+            # Using multi-sweeps need `timestamp`
+            data_['timestamp'] = data_info['timestamp']
+
+        data_ = test_pipeline(data_)
+        data.append(data_)
+
+    collate_data = pseudo_collate(data)
+
+    # forward the model
+    with torch.no_grad():
+        results, feats = model.test_step(collate_data)
+
+    if not is_batch:
+        return results[0], data[0], feats[0]
+    else:
+        return results, data, feats
+
+
+
+
 def inference_mono_3d_detector(model: nn.Module,
                                imgs: ImagesType,
                                ann_file: Union[str, Sequence[str]],
