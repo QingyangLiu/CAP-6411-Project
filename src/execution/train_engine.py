@@ -178,7 +178,7 @@ def train_engine(__C, dataset, dataset_eval=None):
             else:
                 mode_str = __C.SPLIT['train'] + '->' + __C.SPLIT['test']
 
-            print("\r[Version %s][Dataset %s][Epoch %2d][Step %4d/%4d][%s] Loss: %.4f, Lr: %.2e" % (
+            print("\r[Version %s][Dataset %s][Epoch %2d][Step %4d/%4d][%s] Loss: %.4f, Lr: %.2e, Time/Step: %.2f" % (
                 __C.VERSION,
                 __C.MODEL_USE,
                 epoch + 1,
@@ -186,7 +186,8 @@ def train_engine(__C, dataset, dataset_eval=None):
                 int(data_size / __C.BATCH_SIZE),
                 mode_str,
                 loss_tmp / __C.SUB_BATCH_SIZE,
-                optim._rate
+                optim._rate,
+                (time.time()-time_start)/(step+1)
             ), end='          ')
 
             # Gradient norm clipping
