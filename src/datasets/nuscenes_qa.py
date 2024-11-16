@@ -39,6 +39,10 @@ class NuScenes_QA(Data.Dataset):
         # {scene token} -> {scene feature absolutely path}
         self.stk2featpath = self.scene_feat_path_load(scene_feat_path_list)
 
+        self.token_history = self.precompute_token_history(
+            '../datasets/nuscenes/trainval/v1.0-trainval/sample.json'
+        )
+
         # Tokenize and load glove embedding
         if __C.MODEL != 'clip-adpter':
             self.token2ix, self.pretrained_emb = self.tokenize(qa_dict_preread)
@@ -145,25 +149,91 @@ class NuScenes_QA(Data.Dataset):
         
         return ques_ix_iter, ans_iter, scene_token
     
+    # def load_obj_feats(self, scene_token):
+    #     det_results = np.load(self.stk2featpath[scene_token], allow_pickle=True)['results']
+    #     num_obj = det_results.shape[0]
+    #     obj_feat = []
+    #     bbox = []
+    #     label = []
+    #     for i in range(num_obj):
+    #         obj = det_results[i]
+    #         obj_feat.append(obj['feats'])
+    #         bbox.append(obj['box'][:7])
+    #         label.append(obj['label'])
+    #     # empty detection
+    #     if obj_feat == []:
+    #         obj_feat = np.zeros((1, 512)).astype(np.float32)
+    #         bbox = np.zeros((1, 7)).astype(np.float32)
+    #     obj_feat = np.stack(obj_feat, axis=0) # [num_obj, feat_dim]
+    #     bbox = np.stack(bbox, axis=0) # [num_obj, 7]
+    #     obj_feat_iter = self.proc_scene_feat(obj_feat, feat_pad_size=self.__C.FEAT_SIZE['OBJ_FEAT_SIZE'][0])
+    #     bbox_feat_iter = self.proc_scene_feat(self.proc_bbox_feat(bbox, None), feat_pad_size=self.__C.FEAT_SIZE['BBOX_FEAT_SIZE'][0])
+
+    #     return obj_feat_iter.astype(np.float32), bbox_feat_iter.astype(np.float32)
+
+    def precompute_token_history(self, sample_json_path):
+        # Load JSON file to compute token history
+        with open(sample_json_path, 'r') as f:
+            token_data = json.load(f)
+
+        token_map = {entry['token']: entry for entry in token_data}
+
+        # Precompute history mapping
+        token_history = {}
+        for token, entry in token_map.items():
+            prev_token_1 = token_map.get(token, {}).get('prev', None)
+            prev_token_2 = token_map.get(prev_token_1, {}).get('prev', None)
+            token_history[token] = [t for t in [token, prev_token_1, prev_token_2] if t]
+
+        return token_history
+
     def load_obj_feats(self, scene_token):
-        det_results = np.load(self.stk2featpath[scene_token], allow_pickle=True)['results']
-        num_obj = det_results.shape[0]
-        obj_feat = []
-        bbox = []
-        label = []
-        for i in range(num_obj):
-            obj = det_results[i]
-            obj_feat.append(obj['feats'])
-            bbox.append(obj['box'][:7])
-            label.append(obj['label'])
-        # empty detection
-        if obj_feat == []:
-            obj_feat = np.zeros((1, 512)).astype(np.float32)
-            bbox = np.zeros((1, 7)).astype(np.float32)
-        obj_feat = np.stack(obj_feat, axis=0) # [num_obj, feat_dim]
-        bbox = np.stack(bbox, axis=0) # [num_obj, 7]
-        obj_feat_iter = self.proc_scene_feat(obj_feat, feat_pad_size=self.__C.FEAT_SIZE['OBJ_FEAT_SIZE'][0])
-        bbox_feat_iter = self.proc_scene_feat(self.proc_bbox_feat(bbox, None), feat_pad_size=self.__C.FEAT_SIZE['BBOX_FEAT_SIZE'][0])
+        
+
+        tokens = self.token_history.get(scene_token, [])
+
+        obj_feats = []
+        bbox_feats = []
+
+        for token in tokens:
+            if token not in self.stk2featpath:  # Skip tokens without features
+                continue
+
+            det_results = np.load(self.stk2featpath[token], allow_pickle=True)['results']
+            num_obj = det_results.shape[0]
+            obj_feat = []
+            bbox = []
+
+            for i in range(num_obj):
+                obj = det_results[i]
+                obj_feat.append(obj['feats'])  # Object features
+                bbox.append(obj['box'][:7])   # Bounding box (7-dimensional)
+
+            # Handle empty detections
+            if not obj_feat:
+                obj_feat = np.zeros((1, 512)).astype(np.float32)
+                bbox = np.zeros((1, 7)).astype(np.float32)
+
+            obj_feat = np.stack(obj_feat, axis=0)  # [num_obj, feat_dim]
+            bbox = np.stack(bbox, axis=0)         # [num_obj, 7]
+
+            if obj_feat.shape[0] > 100:
+                obj_feat = obj_feat[:100]  # Truncate to 100
+            elif obj_feat.shape[0] < 100:
+                # Pad to 100
+                padding = np.zeros((100 - obj_feat.shape[0], obj_feat.shape[1]))  # Pad with zeros
+                obj_feat = np.vstack([obj_feat, padding])  # Stack the padding to the end
+
+            obj_feats.append(obj_feat)
+            bbox_feats.append(bbox)
+
+        # Concatenate features along the object dimension
+        obj_feats = np.concatenate(obj_feats, axis=0) if obj_feats else np.zeros((0, 512))
+        bbox_feats = np.concatenate(bbox_feats, axis=0) if bbox_feats else np.zeros((0, 7))
+
+        # Process features
+        obj_feat_iter = self.proc_scene_feat(obj_feats, feat_pad_size=self.__C.FEAT_SIZE['OBJ_FEAT_SIZE'][0])
+        bbox_feat_iter = self.proc_scene_feat(self.proc_bbox_feat(bbox_feats, None), feat_pad_size=self.__C.FEAT_SIZE['BBOX_FEAT_SIZE'][0])
 
         return obj_feat_iter.astype(np.float32), bbox_feat_iter.astype(np.float32)
 

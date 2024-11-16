@@ -73,8 +73,8 @@ class BaseCfgs(PATH):
             To be checked.
         '''
         self.FEAT_SIZE = {
-            'OBJ_FEAT_SIZE': (100, 512),
-            'BBOX_FEAT_SIZE': (100, 7)
+            'OBJ_FEAT_SIZE': (300, 512),
+            'BBOX_FEAT_SIZE': (300, 7)
             }
 
         # Set if bbox_feat need be normalize by image size, default: False
