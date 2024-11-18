@@ -187,6 +187,13 @@ class NuScenes_QA(Data.Dataset):
 
         return token_history
 
+    def positional_encoding(self, time_step, d_model=512):
+        pos = np.arange(0, d_model, 2) / d_model
+        pe = np.zeros(d_model)
+        pe[0::2] = np.sin(time_step * (1 / (10000 ** pos)))
+        pe[1::2] = np.cos(time_step * (1 / (10000 ** pos)))
+        return pe
+
     def load_obj_feats(self, scene_token):
         
 
@@ -195,7 +202,7 @@ class NuScenes_QA(Data.Dataset):
         obj_feats = []
         bbox_feats = []
 
-        for token in tokens:
+        for token_index, token in enumerate(tokens):
             if token not in self.stk2featpath:  # Skip tokens without features
                 continue
 
@@ -206,7 +213,7 @@ class NuScenes_QA(Data.Dataset):
 
             for i in range(num_obj):
                 obj = det_results[i]
-                obj_feat.append(obj['feats'])  # Object features
+                obj_feat.append(obj['feats'] + self.positional_encoding(token_index))  # Object features
                 bbox.append(obj['box'][:7])   # Bounding box (7-dimensional)
 
             # Handle empty detections
