@@ -194,6 +194,25 @@ class NuScenes_QA(Data.Dataset):
         pe[1::2] = np.cos(time_step * (1 / (10000 ** pos)))
         return pe
 
+    def rope_embedding(self, feature, time_step, d_model=512):
+        # Compute the scaling factors
+        pos = np.arange(0, d_model // 2) / (d_model // 2)
+        theta = 1 / (10000 ** pos)  # Rotary scaling factors for positional encoding
+        
+        # Compute angles for the given time step
+        angles = time_step * theta  # Shape: (d_model // 2,)
+        cos_vals = np.cos(angles)  # Shape: (d_model // 2,)
+        sin_vals = np.sin(angles)  # Shape: (d_model // 2,)
+        
+        # Duplicate cos and sin for even and odd dimensions
+        cos_vals = np.tile(cos_vals, 2)  # Shape: (d_model,)
+        sin_vals = np.tile(sin_vals, 2)  # Shape: (d_model,)
+        
+        # Apply rotary transformation
+        rotated_feature = feature * cos_vals + np.roll(feature, shift=1) * sin_vals
+        
+        return rotated_feature
+
     def load_obj_feats(self, scene_token):
         
 
@@ -213,7 +232,8 @@ class NuScenes_QA(Data.Dataset):
 
             for i in range(num_obj):
                 obj = det_results[i]
-                obj_feat.append(obj['feats'] + self.positional_encoding(token_index))  # Object features
+                # obj_feat.append(obj['feats'] + self.positional_encoding(token_index))  # sine embedding
+                obj_feat.append(self.rope_embedding(obj['feats'], token_index)) # rope embedding
                 bbox.append(obj['box'][:7])   # Bounding box (7-dimensional)
 
             # Handle empty detections
