@@ -13,6 +13,7 @@ import math
 
 import ipdb
 
+from mamba_ssm import Mamba
 
 # ------------------------------
 # ---- Multi-Head Attention ----
@@ -171,22 +172,42 @@ class SGA(nn.Module):
 # ---- MAC Layers Cascaded by Encoder-Decoder ----
 # ------------------------------------------------
 
+class RMSNorm(nn.Module):
+    def __init__(self, dim, eps=1e-8):
+        super(RMSNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(dim))
+        self.eps = eps
+
+    def forward(self, x):
+        norm = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
+        return self.weight * (x / norm)
+        
 class MCA_ED(nn.Module):
     def __init__(self, __C):
         super(MCA_ED, self).__init__()
 
-        self.enc_list = nn.ModuleList([SA(__C) for _ in range(__C.LAYER)])
-        self.dec_list = nn.ModuleList([SGA(__C) for _ in range(__C.LAYER)])
+        dim = 512
+
+        # Create encoder layers with Mamba followed by RMSNorm
+        self.enc_list = nn.ModuleList([
+            nn.Sequential(
+                Mamba(d_model=dim, d_state=16, d_conv=4, expand=2),
+                RMSNorm(dim)
+            )
+            for _ in range(__C.LAYER)
+        ])
 
     def forward(self, y, x, y_mask, x_mask):
-        # Get encoder last hidden vector
-        for enc in self.enc_list:
-            y = enc(y, y_mask)
+        # Concatenate y and x along the sequence dimension
+        y_x = torch.cat((y, x), dim=1)
 
-        # Input encoder last hidden vector
-        # And obtain decoder last hidden vectors
-        for dec in self.dec_list:
-            x = dec(x, y, x_mask, y_mask)
+        # Pass through encoder layers
+        for enc in self.enc_list:
+            y_x = enc(y_x) + y_x
+
+        # Split back into y and x
+        y = y_x[:, :30, :]
+        x = y_x[:, 30:, :]
 
         return y, x
 

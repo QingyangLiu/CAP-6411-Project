@@ -178,6 +178,12 @@ def train_engine(__C, dataset, dataset_eval=None):
             else:
                 mode_str = __C.SPLIT['train'] + '->' + __C.SPLIT['test']
 
+            # for name, param in net.named_parameters():
+            #     if param.grad is not None:
+            #         print(f"Gradient for {name}: {param.grad.norm()}")
+            #     else:
+            #         print(f"Gradient for {name}: None")
+
             print("\r[Version %s][Dataset %s][Epoch %2d][Step %4d/%4d][%s] Loss: %.4f, Lr: %.2e, Time/Step: %.2f" % (
                 __C.VERSION,
                 __C.MODEL_USE,
@@ -189,6 +195,8 @@ def train_engine(__C, dataset, dataset_eval=None):
                 optim._rate,
                 (time.time()-time_start)/(step+1)
             ), end='          ')
+            
+            # input()
 
             # Gradient norm clipping
             if __C.GRAD_NORM_CLIP > 0:
